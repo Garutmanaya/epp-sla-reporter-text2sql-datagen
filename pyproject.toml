@@ -1,0 +1,19 @@
+[project]
+name = "epp-sla-reporter-text2sql-datagen"
+version = "0.1.0"
+description = "EPP SLA REPORTER TEXT2SQL MODEL"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.13.0",
+    "bitsandbytes>=0.49.2",
+    "datasets>=4.8.4",
+    "pandas>=3.0.2",
+    "parrot>=0.1.10",
+    "peft>=0.18.1",
+    "scipy>=1.17.1",
+    "spacy>=3.8.14",
+    "tensorboard>=2.20.0",
+    "torch>=2.11.0",
+    "transformers>=5.5.3",
+]

@@ -1,0 +1,172 @@
+import json
+import re
+import os
+import argparse
+from config_utils import ConfigUtils
+from templates import SQL_TEMPLATES, get_from_clause
+from filters import FilterProcessor
+
+# ==============================================================================
+# QUERY ENGINE (The Glue)
+# ==============================================================================
+
+class QueryEngine:
+    def __init__(self, mode="random"):
+        """
+        Initializes the engine with the utility and processor.
+        :param mode: 'random' or 'serial' for data selection.
+        """
+        self.utils = ConfigUtils(mode=mode)
+        self.processor = FilterProcessor(self.utils)
+
+    def generate_sample(self, template, active_filters):
+        """
+        Orchestrates the creation of a single SQL/NL pair.
+        """
+        # 1. Get Base Metric
+        metric = self.utils.get_metric()
+        
+        # 2. Initialize States as per requirement
+        sql_parts = {
+            "select": [metric["sql"]],
+            "where": [],
+            "group": [],
+            "order": [],
+            "having": "",
+            "limit": ""
+        }
+        nl_parts = {
+            "metric": metric["nl"],
+            "filters": [],
+            "time": "",
+            "group": "",
+            "ts_prefix": "",
+            "order_prefix": ""
+        }
+
+        # 3. Apply Filter Pipeline (Order matters for SQL logic)
+        # We pass the states through each filter function. 
+        # Functions internally check if they should run based on 'active_filters'.
+        sql_parts, nl_parts = self.processor.apply_group_filter(active_filters, template, sql_parts, nl_parts)
+        sql_parts, nl_parts = self.processor.apply_value_filter(active_filters, template, sql_parts, nl_parts)
+        sql_parts, nl_parts = self.processor.apply_time_filter(active_filters, sql_parts, nl_parts)
+        sql_parts, nl_parts = self.processor.apply_ts_filter(active_filters, sql_parts, nl_parts)
+        sql_parts, nl_parts = self.processor.apply_pattern_filter(active_filters, template, sql_parts, nl_parts)
+        
+        # Apply metric-dependent filters (Order and Having)
+        sql_parts, nl_parts = self.processor.apply_having_filter(active_filters, metric["sql"], sql_parts, nl_parts)
+        # Added template argument to handle dynamic limits per template
+        sql_parts, nl_parts = self.processor.apply_order_filter(active_filters, template, metric["sql"], sql_parts, nl_parts)
+
+        # 4. Assemble SQL
+        from_clause = get_from_clause(template)
+        sql = f"SELECT {', '.join(sql_parts['select'])} FROM {from_clause}"
+        
+        if sql_parts["where"]:
+            sql += " WHERE " + " AND ".join(sql_parts["where"])
+        if sql_parts["group"]:
+            sql += " GROUP BY " + ", ".join(sql_parts["group"])
+        if sql_parts["having"]:
+            sql += " " + sql_parts["having"]
+        if sql_parts["order"]:
+            sql += " ORDER BY " + ", ".join(sql_parts["order"])
+        # Uncommented to ensure LIMIT is actually appended to the final SQL
+        if sql_parts["limit"]:
+            sql += " " + sql_parts["limit"]
+
+        # 1. Extract limit if it exists in the SQL state to avoid KeyError
+        # We parse the number out of the "LIMIT 5" string for NL formatting
+        limit_val = ""
+        if sql_parts["limit"]:
+            limit_val = sql_parts["limit"].replace("LIMIT ", "").strip()
+
+        # 2. Assemble NL (Step 1 Robotic Phrasing)
+        # We provide m_nl, group_col, filters, and limit to satisfy all potential template placeholders
+        try:
+            # Prepare the filter string once
+            filter_str = ", ".join(nl_parts["filters"]) if nl_parts["filters"] else ""
+            
+            main_nl = template["nl"][0].format(
+                m_nl=nl_parts["metric"],
+                group_col=nl_parts["group"],
+                filters=filter_str,
+                limit=limit_val  # Satisfies {limit} in Top N templates
+            )
+        except KeyError as e:
+            # Fallback if other unexpected keys appear in templates
+            print(f"Warning: Template {template['id']} missing key in format: {e}")
+            main_nl = template["nl"][0]
+
+        # 5. Final NL Decoration (Step 1 Robotic Phrasing)
+        # Format: [Order Prefix] [TS Prefix] [Core Metric/Group/Filters] [Time]
+        full_nl = main_nl
+        if nl_parts["ts_prefix"]:
+            full_nl = f"{nl_parts['ts_prefix']} of {full_nl}"
+        if nl_parts["order_prefix"]:
+            # Note: Depending on template, 'top N' might already be in main_nl or needs prefixing
+            if "top" not in full_nl.lower():
+                full_nl = f"{nl_parts['order_prefix']} {full_nl}"
+        if nl_parts["time"]:
+            full_nl = f"{full_nl} during {nl_parts['time']}"
+
+
+        # Clean up double spaces and grammatical artifacts
+        full_nl = re.sub(r"\s+", " ", full_nl).strip()
+        full_nl = full_nl.replace("for during", "during").replace("of for", "for").rstrip("for").strip()
+
+        return full_nl, sql
+
+# ==============================================================================
+# EXECUTION & SAVE LOGIC
+# ==============================================================================
+
+def run_generation(record_count, mode):
+    engine = QueryEngine(mode=mode)
+    dataset = []
+    
+    # Calculate weights
+    enabled_templates = [t for t in SQL_TEMPLATES if t.get("enabled", True)]
+    total_template_weight = sum(t["weight"] for t in enabled_templates)
+
+    print(f"Starting generation: {record_count} records in {mode} mode...")
+
+    for template in enabled_templates:
+        # Determine how many records for this specific template
+        template_quota = int((template["weight"] / total_template_weight) * record_count)
+        
+        for mode_cfg in template["filter_modes"]:
+            # Determine how many records for this specific filter combination
+            mode_quota = int((mode_cfg["weight"] / 100) * template_quota)
+            
+            for _ in range(mode_quota):
+                nl, sql = engine.generate_sample(template, mode_cfg["filters"])
+                dataset.append({
+                    "db_id": "epp_registry",
+                    "template_id": template["id"],
+                    "question": nl,
+                    "query": sql
+                })
+
+    # Save to file
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+    file_path = os.path.join(output_dir, "step1_dataset.json")
+    
+    with open(file_path, "w") as f:
+        json.dump(dataset, f, indent=2)
+    
+    print(f"Success! Generated {len(dataset)} records.")
+    print(f"File saved to: {file_path}")
+
+# ==============================================================================
+# MAIN TEST BLOCK
+# ==============================================================================
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate SQL/NL Dataset")
+    parser.add_argument("--count", type=int, default=100, help="Number of records to generate")
+    parser.add_argument("--mode", type=str, default="random", choices=["random", "serial"], help="Data selection mode")
+    
+    args = parser.parse_args()
+    
+    run_generation(args.count, args.mode)

@@ -1,0 +1,10 @@
+{
+  "active_version": "v1",
+  "s3": 
+  {
+    "enabled": false,
+    "bucket": "epp-sla-reporter-text2sql",
+    "prefix": "data",
+    "region": "us-east-1"
+  }
+}
