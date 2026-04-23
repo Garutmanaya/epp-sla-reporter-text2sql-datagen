@@ -54,6 +54,12 @@ class ConfigManager:
         """Returns the active version string."""
         return self.config.get("active_version", "v1")
 
+
+    @property
+    def database_name(self):
+        """Returns the active version string."""
+        return self.config.get("database_name", "epp_registry.db")
+
     @property
     def s3_enabled(self):
         """Returns boolean status of S3 integration."""
@@ -82,7 +88,8 @@ class ConfigManager:
     @property
     def datagen_mode(self):
         """Returns datagen mode either serial or random as defined in config."""
-        return self.pipeline_params.get("base_model", "random")
+        # Fixed: now looks for datagen_mode
+        return self.pipeline_params.get("datagen_mode", "random")
     
     @property
     def datagen_augment_mode(self):
@@ -121,11 +128,26 @@ class ConfigManager:
     
     def get_versioned_db_path(self):
         """Returns absolute path to [ROOT]/hub/databases/[VERSION]/[DB_NAME]"""
+        # 1. Get the base path 'hub/databases/' (absolute)
+        base_db_dir = self.get_path("db")
+        
+        # 2. Append version 'v1'
+        versioned_dir = base_db_dir / self.version
+        versioned_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 3. Get filename from property
+        db_name = self.database_name
+        
+        # 4. Return the full absolute Path object
+        return (versioned_dir / db_name).resolve() 
+     
+    def get_versioned_db_path_v1(self):
+        """Returns absolute path to [ROOT]/hub/databases/[VERSION]/[DB_NAME]"""
         base_db = self.get_path("db")
         versioned_dir = base_db / self.version
         versioned_dir.mkdir(parents=True, exist_ok=True)
         
-        db_name = self.config.get("datbase_name", "epp_registry.db")
+        db_name = self.config.get("database_name", "epp_registry.db")
         return versioned_dir / db_name 
     
     def __repr__(self):

@@ -2,8 +2,11 @@ import json
 import random
 import re
 import os
+import argparse
 from datetime import datetime
 from common.config_manager import ConfigManager 
+from common.constants import AugmentationStyle
+
 
 class EPPAugmentor:
     """
@@ -157,29 +160,34 @@ def serialize_schema(db_id, db_schemas, indices):
 
     return schema_str
 
-# --- MAIN EXECUTION ---
 
-def DataAugmentor():
+
+def DataAugmentor(style_choice=None):
+    """
+    Core Augmentation Logic.
+    :param style_choice: Can be an Enum member, a string ("1", "natural"), or None.
+    """
     cfg = ConfigManager()
+    # Use versioned data path from config manager
     data_dir = cfg.get_versioned_data_path()
-    # File Paths
     
+    # File Paths
     input_file = os.path.join(data_dir, "train.json")
     output_file = os.path.join(data_dir, "train_augmented.json")
     tables_file = os.path.join(data_dir, "tables.json")
     augmentation_debug_file = os.path.join(data_dir, "augmentation_debug.jsonl")
-   
 
-    # Configuration
-    print("--- EPP Data Augmentation Tool ---")
-    print("1. Generate 'Short' variations")
-    print("2. Generate 'Natural' variations")
-    print("3. Generate 'Verbose' variations")
-    print("4. Generate ALL variations (Recommended)")
+    # Resolve style using the Enum helper
+    style_enum = AugmentationStyle.from_str(style_choice)
     
-    choice = input("Select an option (1-4): ")
-    style_map = {"1": ["short"], "2": ["natural"], "3": ["verbose"], "4": ["short", "natural", "verbose"]}
-    selected_styles = style_map.get(choice, ["natural"])
+    # Your original style mapping logic
+    style_map = {
+        AugmentationStyle.SHORT: ["short"],
+        AugmentationStyle.NATURAL: ["natural"],
+        AugmentationStyle.VERBOSE: ["verbose"],
+        AugmentationStyle.ALL: ["short", "natural", "verbose"]
+    }
+    selected_styles = style_map.get(style_enum, ["natural"])
 
     if not os.path.exists(input_file):
         print(f"Error: {input_file} not found. Please run the generator first.")
@@ -190,12 +198,14 @@ def DataAugmentor():
         original_data = json.load(f)
     with open(tables_file, 'r') as f:
         tables = json.load(f)
+    
     db_schemas = {db['db_id']: db for db in tables}
-
+    
+    # Note: Assuming EPPAugmentor and serialize_schema are imported or defined above
     augmentor = EPPAugmentor(log_path=augmentation_debug_file)
     final_dataset = []
 
-    print(f"Processing {len(original_data)} items...")
+    print(f"--- Processing {len(original_data)} items with styles: {selected_styles} ---")
 
     for entry in original_data:
         db_id = entry["db_id"]
@@ -208,7 +218,7 @@ def DataAugmentor():
         # 2. Create Prompt Schema
         schema_str = serialize_schema(db_id, db_schemas, relevant_indices)
 
-        # 3. Save the Ground Truth (is_augmented: false)
+        # 3. Save the Ground Truth
         orig_record = entry.copy()
         orig_record["prompt_schema"] = schema_str
         orig_record["is_augmented"] = False
@@ -236,5 +246,22 @@ def DataAugmentor():
     print(f"📁 Debug File Saved to: {augmentation_debug_file}")
 
 
+# --- MAIN BLOCK: Interactive Selection ---
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="EPP Data Augmentation Tool")
+    parser.add_argument("--style", type=str, help="Pre-select style (short, natural, verbose, all)")
+    args = parser.parse_args()
+
+    if args.style:
+        # Use CLI argument if provided
+        DataAugmentor(style_choice=args.style)
+    else:
+        # Otherwise, prompt the user interactively
+        print("\n--- EPP Data Augmentation Tool ---")
+        print("1. Generate 'Short' variations")
+        print("2. Generate 'Natural' variations")
+        print("3. Generate 'Verbose' variations")
+        print("4. Generate ALL variations (Recommended)")
+        
+        choice = input("\nSelect an option (1-4): ")
+        DataAugmentor(style_choice=choice)

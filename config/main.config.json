@@ -1,11 +1,11 @@
 {
   "active_version": "v1",
-  "datbase_name": "epp_registry.db",
+  "database_name": "epp_registry.db",
   "s3": 
   {
     "enabled": false,
     "bucket": "epp-sla-reporter-text2sql",
-    "prefix": "data",
+    "prefix": "hub",
     "region": "us-east-1"
   },
   "paths": {
@@ -16,7 +16,7 @@
   "pipeline": {
     "datagen_count" : 5000,
     "datagen_mode" : "serial", 
-    "datagen_augment_mode" : "Natural",
+    "datagen_augment_mode" : "natural",
     "training_mode" : "lora", 
     "google_flan_t5_model_size" : "base"
   }

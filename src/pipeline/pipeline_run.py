@@ -10,8 +10,8 @@ import traceback
 from common.config_manager import ConfigManager
 from common.s3_utils import S3Manager
 from database.db_generator import EPPDatabaseGenerator
-from datagen.generator import DataGenerator as DataGenerator # Integrated
-from datagen.augmentor import main as DataAugmentor  # Integrated
+from datagen.generator import DataGenerator 
+from datagen.augmentor import DataAugmentor 
 from model.trainer import Text2SQLTrainer
 from model.inference import Text2SQLInference
 
@@ -56,8 +56,14 @@ def step_datagen():
 def step_augmentation():
     """Augment the generated data for better model robustness."""
     print("\n=== STEP 3: DATA AUGMENTATION ===")
-    augmentor = DataAugmentor()
-    augmentor.augment() # Assumes augment() method exists in your augmentor.py
+    cfg = ConfigManager()
+    
+    # Get the value from your new pipeline config block
+    mode = cfg.pipeline_params.get("datagen_augment_mode", "natural") 
+    
+    # Call directly with the config value
+    DataAugmentor(style_choice=mode) 
+    
 
 def step_training(mode="lora", size="base"):
     """Run model training (Full or LoRA)."""

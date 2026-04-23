@@ -14,15 +14,12 @@ logger = logging.getLogger("DBGenerator")
 
 class EPPDatabaseGenerator:
     def __init__(self):
-        self.config_manager = ConfigManager()
-        self.config = self.config_manager.get_config()
+        self.config = ConfigManager()
         
         # Resolve path: hub/databases/v1/
-        self.version = self.config.get("active_version", "v1")
-        self.db_dir = os.path.join(self.config["paths"]["db"], self.version)
-        self.db_name = self.config.get("datbase_name", "epp_registry.db") # Using key from your config
-        self.db_path = Path(os.path.join(self.db_dir, self.db_name))
-        
+        self.version = self.config.version
+        self.db_path = self.config.get_versioned_db_path() 
+        print(self.db_path)
         self.sla_min_records = 10_000
 
     def create_tables(self, conn: sqlite3.Connection) -> None:

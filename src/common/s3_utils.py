@@ -19,12 +19,12 @@ class S3Manager:
     """
     def __init__(self):
         self.config_manager = ConfigManager()
-        self.config = self.config_manager.get_config()
+        self.config = self.config_manager.config
         
         # S3 specific configuration
         self.s3_cfg = self.config.get("s3", {})
-        self.enabled = self.s3_cfg.get("enabled", False)
-        self.version = self.config.get("active_version", "v1")
+        self.enabled = self.config_manager.s3_enabled  
+        self.version = self.config_manager.version     
         
         # Path mapping for local directories (e.g., hub/data/, hub/artifacts/, hub/databases/)
         self.path_map = self.config.get("paths", {})
