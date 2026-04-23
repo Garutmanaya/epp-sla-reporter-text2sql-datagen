@@ -167,6 +167,8 @@ def main():
     input_file = os.path.join(data_dir, "train.json")
     output_file = os.path.join(data_dir, "train_augmented.json")
     tables_file = os.path.join(data_dir, "tables.json")
+    augmentation_debug_file = os.path.join(data_dir, "augmentation_debug.jsonl")
+   
 
     # Configuration
     print("--- EPP Data Augmentation Tool ---")
@@ -190,7 +192,7 @@ def main():
         tables = json.load(f)
     db_schemas = {db['db_id']: db for db in tables}
 
-    augmentor = EPPAugmentor()
+    augmentor = EPPAugmentor(log_path=augmentation_debug_file)
     final_dataset = []
 
     print(f"Processing {len(original_data)} items...")
