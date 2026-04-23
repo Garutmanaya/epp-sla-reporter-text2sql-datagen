@@ -114,7 +114,7 @@ class EPPAugmentor:
             with open(self.log_path, "a") as f:
                 log_entry = {"style": style, "from": original, "to": augmented}
                 f.write(json.dumps(log_entry) + "\n")
-
+           
 # --- SCHEMA SERIALIZATION LOGIC ---
 
 def serialize_schema(db_id, db_schemas, indices):
@@ -233,6 +233,6 @@ def main():
 
     print(f"✅ Success! Generated {len(final_dataset)} total records.")
     print(f"📁 Saved to: {output_file}")
-
+    print(f"📁 Debug File Saved to: {augmentation_debug_file}")
 if __name__ == "__main__":
     main()
