@@ -2,6 +2,7 @@ import json
 import re
 import os
 import argparse
+import sqlite3
 from datagen.config_utils import ConfigUtils
 from datagen.templates import SQL_TEMPLATES, get_from_clause
 from datagen.filters import FilterProcessor
@@ -20,6 +21,66 @@ class QueryEngine:
         self.utils = ConfigUtils(mode=mode)
         self.processor = FilterProcessor(self.utils)
         self.cfg = ConfigManager()
+
+
+    # ==============================================================================
+    # SCHEMA DEFINITION (tables.json)
+    # ==============================================================================
+    def save_tables_json(self,output_path):
+        """Generates the mandatory tables.json for Spider-style training."""
+        tables_data = [{
+            "db_id": "epp_registry",
+            "table_names_original": ["epp_sla", "epp_client", "epp_release"],
+            "table_names": ["epp sla", "epp client", "epp release"],
+            "column_names_original": [
+                [-1, "*"], [0, "date"], [0, "hour"], [0, "command"], [0, "tld"], [0, "response_time"],
+                [0, "result"], [0, "volume"], [0, "client_name"], [0, "failed_reason"],
+                [1, "client_name"], [1, "client_ip_version"], [1, "client_group"], [1, "client_location"],
+                [2, "release_name"], [2, "release_start"], [2, "release_end"], [2, "release_location"]
+            ],
+            "column_names": [
+                [-1, "all"], [0, "date"], [0, "hour"], [0, "command"], [0, "tld"], [0, "response time"],
+                [0, "result"], [0, "volume"], [0, "client name"], [0, "failed reason"],
+                [1, "client name"], [1, "client ip version"], [1, "client group"], [1, "client location"],
+                [2, "release name"], [2, "release start"], [2, "release end"], [2, "release location"]
+            ],
+            "column_types": ["text", "text", "number", "text", "text", "number", "text", "number", "text", "text", "text", "text", "text", "text", "text", "text", "text", "text"],
+            "primary_keys": [1, 10, 14],
+            "foreign_keys": [[8, 10]]
+        }]
+        with open(output_path, "w") as f:
+            json.dump(tables_data, f, indent=2)
+        print(f"Schema File saved to: {output_path}")
+
+    def validate_sql(self, sql):
+        """
+        Validates SQL syntax against an in-memory SQLite schema.
+        Uses EXPLAIN QUERY PLAN to check validity without executing.
+        """
+        try:
+            conn = sqlite3.connect(":memory:")
+            cursor = conn.cursor()
+            # Initialize the EPP Schema for validation
+            cursor.executescript("""
+            CREATE TABLE epp_sla (
+                date TEXT, hour INTEGER, command TEXT, tld TEXT,
+                response_time REAL, result TEXT, volume INTEGER,
+                client_name TEXT, failed_reason TEXT
+            );
+            CREATE TABLE epp_client (
+                client_name TEXT PRIMARY KEY, client_ip_version TEXT,
+                client_group TEXT, client_location TEXT
+            );
+            CREATE TABLE epp_release (
+                release_name TEXT PRIMARY KEY, release_start TEXT,
+                release_end TEXT, release_location TEXT
+            );
+            """)
+            cursor.execute("EXPLAIN QUERY PLAN " + sql)
+            return True
+        except Exception:
+            return False
+
 
     def generate_sample(self, template, active_filters):
         """
@@ -135,7 +196,7 @@ class QueryEngine:
 # EXECUTION & SAVE LOGIC
 # ==============================================================================
 
-def run_generation(record_count, mode):
+def run_generation_v1(record_count, mode):
     engine = QueryEngine(mode=mode)
     dataset = []
     
@@ -173,6 +234,181 @@ def run_generation(record_count, mode):
     
     print(f"Success! Generated {len(dataset)} records.")
     print(f"File saved to: {file_path}")
+
+
+def run_generation_v2(record_count, mode):
+    engine = QueryEngine(mode=mode)
+    dataset = []
+    failed_log = []  # To track validation failures
+    
+    
+    # Calculate weights
+    enabled_templates = [t for t in SQL_TEMPLATES if t.get("enabled", True)]
+    total_template_weight = sum(t["weight"] for t in enabled_templates)
+
+    print(f"Starting generation: {record_count} records in {mode} mode...")
+
+    for template in enabled_templates:
+        # Determine how many records for this specific template
+        template_quota = int((template["weight"] / total_template_weight) * record_count)
+        
+        for mode_cfg in template["filter_modes"]:
+            # Determine how many records for this specific filter combination
+            mode_quota = int((mode_cfg["weight"] / 100) * template_quota)
+            
+            generated = 0
+            attempts = 0
+            max_attempts = mode_quota * 3  # Retry limit for validation
+            
+            # Use a while loop to ensure we meet quota with valid SQL
+            while generated < mode_quota and attempts < max_attempts:
+                attempts += 1
+                nl, sql = engine.generate_sample(template, mode_cfg["filters"])
+                
+                # Validation Logic
+                if engine.validate_sql(sql):
+                    dataset.append({
+                        "db_id": "epp_registry",
+                        "template_id": template["id"],
+                        "question": nl,
+                        "query": sql
+                    })
+                    generated += 1
+                else:
+                    failed_log.append({
+                        "template_id": template["id"],
+                        "filters": mode_cfg["filters"],
+                        "sql": sql,
+                        "error": "Validation failed"
+                    })
+
+            # Force Fill Fallback: If we couldn't generate enough valid SQL
+            while generated < mode_quota:
+                nl, sql = engine.generate_sample(template, mode_cfg["filters"])
+                dataset.append({
+                    "db_id": "epp_registry",
+                    "template_id": template["id"],
+                    "question": nl,
+                    "query": sql
+                })
+                failed_log.append({
+                    "template_id": template["id"],
+                    "sql": sql,
+                    "forced": True
+                })
+                generated += 1
+
+    # Define paths
+    output_dir = engine.cfg.get_versioned_data_path()
+    os.makedirs(output_dir, exist_ok=True)
+    
+    file_path = os.path.join(output_dir, "train.json")
+    failed_file_path = os.path.join(output_dir, "train_failed.json")
+    tables_json_file_path = os.path.join(output_dir, "tables.json")
+
+    # Save tables.json file 
+    engine.save_tables_json(tables_json_file_path)
+
+    # Save successful dataset
+    with open(file_path, "w") as f:
+        json.dump(dataset, f, indent=2)
+        
+    # Save failed logs
+    if failed_log:
+        with open(failed_file_path, "w") as f:
+            json.dump(failed_log, f, indent=2)
+    
+    print(f"Success! Generated {len(dataset)} records.")
+    print(f"Failed! {len(failed_log)} records failed in validation.")
+    print(f"File saved to: {file_path}")
+    if failed_log:
+        print(f"Failures logged to: {failed_file_path}")
+
+
+def run_generation(record_count, mode):
+    engine = QueryEngine(mode=mode)
+    dataset = []
+    failed_log = []
+    
+    enabled_templates = [t for t in SQL_TEMPLATES if t.get("enabled", True)]
+    total_template_weight = sum(t["weight"] for t in enabled_templates)
+
+    print(f"Starting generation: {record_count} records in {mode} mode...")
+
+    for t_idx, template in enumerate(enabled_templates):
+        # 1. Calculate Template Quota
+        # If it's the last template, take all remaining records to hit record_count exactly
+        if t_idx == len(enabled_templates) - 1:
+            template_quota = record_count - len(dataset)
+        else:
+            template_quota = int((template["weight"] / total_template_weight) * record_count)
+        
+        current_template_generated = 0
+        for m_idx, mode_cfg in enumerate(template["filter_modes"]):
+            # 2. Calculate Mode Quota
+            # If it's the last mode in this template, take the remainder of the template_quota
+            if m_idx == len(template["filter_modes"]) - 1:
+                mode_quota = template_quota - current_template_generated
+            else:
+                mode_quota = int((mode_cfg["weight"] / 100) * template_quota)
+            
+            generated_for_mode = 0
+            attempts = 0
+            max_attempts = mode_quota * 5 
+            
+            # 3. Validation Loop
+            while generated_for_mode < mode_quota and attempts < max_attempts:
+                attempts += 1
+                nl, sql = engine.generate_sample(template, mode_cfg["filters"])
+                
+                if engine.validate_sql(sql):
+                    dataset.append({
+                        "db_id": "epp_registry",
+                        "template_id": template["id"],
+                        "question": nl,
+                        "query": sql
+                    })
+                    generated_for_mode += 1
+                    current_template_generated += 1
+                else:
+                    failed_log.append({"template_id": template["id"], "sql": sql})
+
+            # 4. Force Fill (If validation failed too many times)
+            while generated_for_mode < mode_quota:
+                nl, sql = engine.generate_sample(template, mode_cfg["filters"])
+                dataset.append({
+                    "db_id": "epp_registry",
+                    "template_id": template["id"],
+                    "question": nl,
+                    "query": sql,
+                    "validation_skipped": True
+                })
+                generated_for_mode += 1
+                current_template_generated += 1
+
+    # Save logic
+    output_dir = engine.cfg.get_versioned_data_path()
+    os.makedirs(output_dir, exist_ok=True)
+    
+    file_path = os.path.join(output_dir, "train.json")
+    failed_file_path = os.path.join(output_dir, "train_failed.json")
+    tables_json_file_path = os.path.join(output_dir, "tables.json")
+    print(tables_json_file_path)
+    # Save tables.json file 
+    engine.save_tables_json(tables_json_file_path)
+
+    with open(file_path, "w") as f:
+        json.dump(dataset, f, indent=2)
+    
+    if failed_log:
+        with open(failed_file_path, "w") as f:
+            json.dump(failed_log, f, indent=2)
+    
+    print(f"Success! Generated {len(dataset)} records.")
+    print(f"Failed! {len(failed_log)} records failed in validation.")
+    print(f"File saved to: {file_path}")
+    if failed_log:
+        print(f"Failures logged to: {failed_file_path}")
 
 # ==============================================================================
 # MAIN TEST BLOCK
