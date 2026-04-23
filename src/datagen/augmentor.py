@@ -3,6 +3,7 @@ import random
 import re
 import os
 from datetime import datetime
+from common.config_manager import ConfigManager 
 
 class EPPAugmentor:
     """
@@ -159,11 +160,14 @@ def serialize_schema(db_id, db_schemas, indices):
 # --- MAIN EXECUTION ---
 
 def main():
+    cfg = ConfigManager()
+    data_dir = cfg.get_versioned_data_path()
     # File Paths
-    input_file = "output/train.json"
-    output_file = "output/train_augmented.json"
-    tables_file = "output/tables.json"
     
+    input_file = os.path.join(data_dir, "train.json")
+    output_file = os.path.join(data_dir, "train_augmented.json")
+    tables_file = os.path.join(data_dir, "tables.json")
+
     # Configuration
     print("--- EPP Data Augmentation Tool ---")
     print("1. Generate 'Short' variations")
