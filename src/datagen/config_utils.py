@@ -1,6 +1,6 @@
 import random
 # Importing from your existing config.py
-from config import METRICS, TIME_FILTERS, COLUMN_VALUES
+from datagen.config import METRICS, TIME_FILTERS, COLUMN_VALUES
 
 class ConfigUtils:
     def __init__(self, mode="random"):

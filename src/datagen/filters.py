@@ -1,6 +1,6 @@
 import random
 import re
-from config import TIME_FILTERS, COLUMN_VALUES, METRICS
+from datagen.config import TIME_FILTERS, COLUMN_VALUES, METRICS
 
 # ==============================================================================
 # 1. TIME SERIES MODES

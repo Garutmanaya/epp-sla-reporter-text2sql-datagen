@@ -2,9 +2,10 @@ import json
 import re
 import os
 import argparse
-from config_utils import ConfigUtils
-from templates import SQL_TEMPLATES, get_from_clause
-from filters import FilterProcessor
+from datagen.config_utils import ConfigUtils
+from datagen.templates import SQL_TEMPLATES, get_from_clause
+from datagen.filters import FilterProcessor
+from common.config_manager import ConfigManager 
 
 # ==============================================================================
 # QUERY ENGINE (The Glue)
@@ -18,6 +19,7 @@ class QueryEngine:
         """
         self.utils = ConfigUtils(mode=mode)
         self.processor = FilterProcessor(self.utils)
+        self.cfg = ConfigManager()
 
     def generate_sample(self, template, active_filters):
         """
@@ -161,9 +163,10 @@ def run_generation(record_count, mode):
                 })
 
     # Save to file
-    output_dir = "output"
+    output_dir = engine.cfg.get_versioned_data_path()
+    #output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
-    file_path = os.path.join(output_dir, "step1_dataset.json")
+    file_path = os.path.join(output_dir, "train.json")
     
     with open(file_path, "w") as f:
         json.dump(dataset, f, indent=2)
