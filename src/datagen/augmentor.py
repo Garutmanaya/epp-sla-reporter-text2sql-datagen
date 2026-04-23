@@ -159,7 +159,7 @@ def serialize_schema(db_id, db_schemas, indices):
 
 # --- MAIN EXECUTION ---
 
-def main():
+def DataAugmentor():
     cfg = ConfigManager()
     data_dir = cfg.get_versioned_data_path()
     # File Paths
@@ -234,5 +234,7 @@ def main():
     print(f"✅ Success! Generated {len(final_dataset)} total records.")
     print(f"📁 Saved to: {output_file}")
     print(f"📁 Debug File Saved to: {augmentation_debug_file}")
+
+
 if __name__ == "__main__":
     main()

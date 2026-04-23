@@ -13,8 +13,8 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
-from src.common.config_manager import ConfigManager
-from src.common.s3_utils import S3Manager
+from common.config_manager import ConfigManager
+from common.s3_utils import S3Manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Trainer")

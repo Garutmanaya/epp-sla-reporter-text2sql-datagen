@@ -59,6 +59,36 @@ class ConfigManager:
         """Returns boolean status of S3 integration."""
         return self.config.get("s3", {}).get("enabled", False)
 
+    @property
+    def pipeline_params(self):
+        """Returns the entire pipeline configuration dictionary."""
+        return self.config.get("pipeline", {})
+
+    @property
+    def training_mode(self):
+        """Returns lora or full as defined in config."""
+        return self.pipeline_params.get("training_mode", "lora")
+
+    @property
+    def model_size(self):
+        """Returns base or small as defined in config."""
+        return self.pipeline_params.get("google_flan_t5_model_size", "base")
+
+    @property
+    def datagen_count(self):
+        """Returns datagen record count from pipleline config."""
+        return self.pipeline_params.get("datagen_count", "1000")
+
+    @property
+    def datagen_mode(self):
+        """Returns datagen mode either serial or random as defined in config."""
+        return self.pipeline_params.get("base_model", "random")
+    
+    @property
+    def datagen_augment_mode(self):
+        """Returns datagen augment mode (Natural, Short, Complex, All) as defined in config."""
+        return self.pipeline_params.get("datagen_augment_mode", "Natural")
+
     def get_path(self, path_key):
         """
         Retrieves a local path from config and makes it absolute relative to project root.
@@ -88,6 +118,15 @@ class ConfigManager:
         versioned_path = base_model / self.version
         versioned_path.mkdir(parents=True, exist_ok=True)
         return versioned_path 
+    
+    def get_versioned_db_path(self):
+        """Returns absolute path to [ROOT]/hub/databases/[VERSION]/[DB_NAME]"""
+        base_db = self.get_path("db")
+        versioned_dir = base_db / self.version
+        versioned_dir.mkdir(parents=True, exist_ok=True)
+        
+        db_name = self.config.get("datbase_name", "epp_registry.db")
+        return versioned_dir / db_name 
     
     def __repr__(self):
         return f"<ConfigManager(root={self.root_dir}, version={self.version})>"

@@ -410,6 +410,20 @@ def run_generation(record_count, mode):
     if failed_log:
         print(f"Failures logged to: {failed_file_path}")
 
+
+def DataGenerator(argv=None):
+    parser = argparse.ArgumentParser(description="Generate SQL/NL Dataset")
+    parser.add_argument("--count", type=int, default=100, help="Number of records to generate")
+    parser.add_argument("--mode", type=str, default="random", choices=["random", "serial"], help="Data selection mode")
+    
+    # Passing argv here is the secret: 
+    # If argv is [], it ignores the command line flags like --step
+    args = parser.parse_args(argv)
+    
+    print(f"Generating {args.count} records in {args.mode} mode...")
+    run_generation(args.count, str(args.mode)) 
+
+
 # ==============================================================================
 # MAIN TEST BLOCK
 # ==============================================================================

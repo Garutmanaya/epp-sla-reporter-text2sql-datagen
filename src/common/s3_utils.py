@@ -3,7 +3,7 @@ import os
 import logging
 import argparse
 from pathlib import Path
-from src.common.config_manager import ConfigManager
+from common.config_manager import ConfigManager
 
 # Setup logging
 logging.basicConfig(

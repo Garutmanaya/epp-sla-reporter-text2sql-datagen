@@ -6,7 +6,7 @@ import logging
 from argparse import ArgumentParser
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from src.common.config_manager import ConfigManager
+from common.config_manager import ConfigManager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)

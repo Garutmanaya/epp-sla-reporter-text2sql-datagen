@@ -4,7 +4,7 @@ import os
 import logging
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from peft import PeftModel
-from src.common.config_manager import ConfigManager
+from common.config_manager import ConfigManager
 
 logger = logging.getLogger("Inference")
 
