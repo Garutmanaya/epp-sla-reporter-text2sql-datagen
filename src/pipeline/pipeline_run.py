@@ -87,8 +87,10 @@ def step_inference_test(mode="lora", size="base"):
     """Run a quick sanity check inference."""
     print("\n=== STEP 6: INFERENCE SANITY CHECK ===")
     try:
-        infer = Text2SQLInference(mode=mode, model_size=size)
-        sample_q = "Show total volume for AtlasRegistrar yesterday"
+        config = ConfigManager()
+        infer = Text2SQLInference(mode=config.training_mode, model_size=config.model_size)
+        sample_q = "records where command starts with ADD during previous month"
+        sample_q = "unique command count"
         result = infer.predict(sample_q)
         print(f"Question: {result['question']}")
         print(f"SQL: {result['sql']}")

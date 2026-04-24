@@ -61,35 +61,59 @@ class InferenceSchemaManager:
             schema_str += " | Relationships: " + ", ".join(sorted(list(rel_set)))
         return schema_str
 
+
+
 class Text2SQLInference:
     def __init__(self, mode="lora", model_size="base"):
-        self.config = ConfigManager().get_config()
-        self.version = self.config.get("active_version", "v1")
+        # 1. Initialize ConfigManager
+        self.config_manager = ConfigManager()
+        
+        # 2. Fix: Access .config attribute directly
+        self.config = self.config_manager.config
+        
+        # 3. Use ConfigManager properties for version and mode
+        self.version = self.config_manager.version
         self.mode = mode
         self.base_model_id = f"google/flan-t5-{model_size}"
         
-        # Path Setup
-        model_path = os.path.join(self.config["paths"]["model"], self.version, "final_model")
-        tables_path = os.path.join(self.config["paths"]["data"], self.version, "tables.json")
+        # 4. Path Setup using ConfigManager helpers
+        # This replaces the manual os.path.join logic
+        versioned_model_root = self.config_manager.get_versioned_model_path()
+        versioned_data_root = self.config_manager.get_versioned_data_path()
+        
+        # Define specific file paths
+        model_path = os.path.join(versioned_model_root, "final_model")
+        tables_path = os.path.join(versioned_data_root, "tables.json")
 
         # Load Schema Manager
+        if not os.path.exists(tables_path):
+            logger.error(f"Tables file not found at {tables_path}")
+            raise FileNotFoundError(f"Missing tables.json in {versioned_data_root}")
+
         with open(tables_path, 'r') as f:
             tables = json.load(f)
+        
         self.schema_manager = InferenceSchemaManager({db['db_id']: db for db in tables})
 
         # Load Model & Tokenizer
         self.tokenizer = T5Tokenizer.from_pretrained(model_path, legacy=False)
         
         logger.info(f"Loading {mode} model from {model_path}...")
+        
         if mode == "lora":
             base_model = T5ForConditionalGeneration.from_pretrained(
-                self.base_model_id, torch_dtype=torch.float32, device_map="auto"
+                self.base_model_id, 
+                torch_dtype=torch.float32, 
+                device_map="auto"
             )
             self.model = PeftModel.from_pretrained(base_model, model_path)
         else:
             self.model = T5ForConditionalGeneration.from_pretrained(
-                model_path, torch_dtype=torch.float32, device_map="auto"
+                model_path, 
+                torch_dtype=torch.float32, 
+                device_map="auto"
             )
+        
         self.model.eval()
 
     def predict(self, question: str, db_id: str = "epp_registry"):

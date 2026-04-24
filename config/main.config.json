@@ -14,9 +14,9 @@
     "db": "hub/databases/"
   },
   "pipeline": {
-    "datagen_count" : 500,
+    "datagen_count" : 5000,
     "datagen_mode" : "serial", 
-    "datagen_augment_mode" : "natural",
+    "datagen_augment_mode" : "all",
     "training_mode" : "lora", 
     "google_flan_t5_model_size" : "base"
   }
