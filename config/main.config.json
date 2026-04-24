@@ -3,7 +3,7 @@
   "database_name": "epp_registry.db",
   "s3": 
   {
-    "enabled": false,
+    "enabled": true,
     "bucket": "epp-sla-reporter-text2sql",
     "prefix": "hub",
     "region": "us-east-1"
@@ -14,7 +14,7 @@
     "db": "hub/databases/"
   },
   "pipeline": {
-    "datagen_count" : 5000,
+    "datagen_count" : 500,
     "datagen_mode" : "serial", 
     "datagen_augment_mode" : "natural",
     "training_mode" : "lora", 

@@ -68,8 +68,11 @@ def step_augmentation():
 def step_training(mode="lora", size="base"):
     """Run model training (Full or LoRA)."""
     print(f"\n=== STEP 4: TRAINING ({mode.upper()} - {size}) ===")
-    trainer = Text2SQLTrainer(model_size=size)
-    trainer.train(mode=mode)
+   
+    config = ConfigManager()
+    # Use the new properties
+    trainer = Text2SQLTrainer(model_size=config.model_size)
+    trainer.train(mode=config.training_mode)
 
 def step_s3_sync_up():
     """Upload newly created assets (DB, Data, Models) to S3."""

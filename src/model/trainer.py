@@ -20,19 +20,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Trainer")
 
 class Text2SQLTrainer:
+    
     def __init__(self, model_size="base"):
-        self.config = ConfigManager().get_config()
+        # 1. Initialize the ConfigManager
+        self.config_manager = ConfigManager()
+        
+        # 2. Fix: Access .config attribute directly (not .get_config())
+        self.config = self.config_manager.config
+        
         self.s3_manager = S3Manager()
         
-        # Model Selection logic
+        # 3. Model Selection logic
         self.model_name = f"google/flan-t5-{model_size}"
-        self.active_version = self.config.get("active_version", "v1")
         
-        # Path Resolution from config
-        self.data_dir = os.path.join(self.config["paths"]["data"], self.active_version)
-        self.model_dir = os.path.join(self.config["paths"]["model"], self.active_version)
+        # 4. Use ConfigManager properties for better reliability
+        self.active_version = self.config_manager.version
+        
+        # 5. Optimized Path Resolution
+        # Instead of manual os.path.join, use the helpers we built in ConfigManager
+        self.data_dir = self.config_manager.get_versioned_data_path()
+        self.model_dir = self.config_manager.get_versioned_model_path()
+        
+        # Define the input file specifically
         self.input_file = os.path.join(self.data_dir, "train_augmented.json")
         
+        # Ensure model directory exists (ConfigManager helpers already do this, but safe to keep)
         os.makedirs(self.model_dir, exist_ok=True)
 
     def preprocess_function(self, examples, tokenizer):
