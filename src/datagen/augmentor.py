@@ -120,7 +120,7 @@ class EPPAugmentor:
            
 # --- SCHEMA SERIALIZATION LOGIC ---
 
-def serialize_schema(db_id, db_schemas, indices):
+def serialize_schema_v1(db_id, db_schemas, indices):
     """
     Constructs the 'prompt_schema' string. 
     Includes table definitions and foreign key relationships for the detected indices.
@@ -160,6 +160,77 @@ def serialize_schema(db_id, db_schemas, indices):
 
     return schema_str
 
+def serialize_schema(db_id, db_schemas, indices):
+    """
+    Constructs the 'prompt_schema' string using pre-prefixed columns.
+    Example: Table epp_sla: epp_sla.date, epp_sla.hour...
+    """
+    schema = db_schemas.get(db_id, {})
+    if not schema: return ""
+
+    table_names = schema['table_names_original']
+    column_names = schema['column_names_original']
+    foreign_keys = schema.get('foreign_keys', [])
+
+    # Build Table Strings with Prefixed Columns
+    serialized_tables = []
+    for i in sorted(indices):
+        t_name = table_names[i]
+        # UPDATED: Prefix each column with the table name
+        cols = [f"{t_name}.{c[1]}" for c in column_names if c[0] == i]
+        # UPDATED: Use a colon instead of parentheses for a cleaner separation
+        serialized_tables.append(f"Table {t_name}: {', '.join(cols)}")
+
+    schema_str = " | ".join(serialized_tables)
+
+    # Build Relationship Strings
+    rel_set = set()
+    for src_idx, dest_idx in foreign_keys:
+        s_tab_idx = column_names[src_idx][0]
+        d_tab_idx = column_names[dest_idx][0]
+        if s_tab_idx in indices and d_tab_idx in indices:
+            rel = f"{table_names[s_tab_idx]}.{column_names[src_idx][1]} = {table_names[d_tab_idx]}.{column_names[dest_idx][1]}"
+            rel_set.add(rel)
+
+    # Business logic relationships
+    if 0 in indices:
+        if 1 in indices: rel_set.add("epp_sla.client_name = epp_client.client_name")
+        if 2 in indices: rel_set.add("epp_sla.date BETWEEN epp_release.release_start AND epp_release.release_end")
+
+    if rel_set:
+        schema_str += " | Relationships: " + " , ".join(sorted(list(rel_set)))
+
+    return schema_str
+
+def patch_dataset_for_tokens(data_list):
+    """
+    Replaces 'table.column' with 'table__column' in both prompt and query 
+    to prevent T5 tokenizer issues with the dot (.) character.
+    """
+    # Define your specific table names here
+    tables = ["epp_sla", "epp_client", "epp_release"]
+    
+    patched_data = []
+    
+    for entry in data_list:
+        # Create a copy to avoid modifying the original list in place
+        new_entry = entry.copy()
+        
+        for table in tables:
+            target = f"{table}."
+            replacement = f"{table}__"
+            
+            # Patch the schema context
+            if "prompt_schema" in new_entry:
+                new_entry["prompt_schema"] = new_entry["prompt_schema"].replace(target, replacement)
+            
+            # Patch the target SQL query
+            if "query" in new_entry:
+                new_entry["query"] = new_entry["query"].replace(target, replacement)
+                
+        patched_data.append(new_entry)
+        
+    return patched_data
 
 
 def DataAugmentor(style_choice=None):
@@ -174,6 +245,7 @@ def DataAugmentor(style_choice=None):
     # File Paths
     input_file = os.path.join(data_dir, "train.json")
     output_file = os.path.join(data_dir, "train_augmented.json")
+    output_patched_file = os.path.join(data_dir, "train_augmented_patched.json")
     tables_file = os.path.join(data_dir, "tables.json")
     augmentation_debug_file = os.path.join(data_dir, "augmentation_debug.jsonl")
 
@@ -241,9 +313,18 @@ def DataAugmentor(style_choice=None):
     with open(output_file, "w") as f:
         json.dump(final_dataset, f, indent=2)
 
+    # 2. Patch it to fix the "Dot" issue
+    ready_to_train_data = patch_dataset_for_tokens(final_dataset)
+
+    # 3. Save to JSON
+    with open(output_patched_file, "w") as f:
+        json.dump(ready_to_train_data, f, indent=2) 
+
     print(f"✅ Success! Generated {len(final_dataset)} total records.")
     print(f"📁 Saved to: {output_file}")
+    print(f"📁 Saved Patched Final File to: {output_patched_file}")
     print(f"📁 Debug File Saved to: {augmentation_debug_file}")
+
 
 
 # --- MAIN BLOCK: Interactive Selection ---
