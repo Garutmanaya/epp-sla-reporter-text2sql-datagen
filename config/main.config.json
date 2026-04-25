@@ -14,7 +14,7 @@
     "db": "hub/databases/"
   },
   "pipeline": {
-    "datagen_count" : 5000,
+    "datagen_count" : 6000,
     "datagen_mode" : "serial", 
     "datagen_augment_mode" : "all",
     "training_mode" : "lora", 

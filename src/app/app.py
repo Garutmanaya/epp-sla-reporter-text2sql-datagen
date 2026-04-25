@@ -5,8 +5,8 @@ from fastapi import FastAPI, HTTPException, Body
 from pydantic import BaseModel, Field
 import uvicorn
 
-from src.pipeline.inference import Text2SQLInference
-from src.common.config_manager import ConfigManager
+from model.inference import Text2SQLInference
+from common.config_manager import ConfigManager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)

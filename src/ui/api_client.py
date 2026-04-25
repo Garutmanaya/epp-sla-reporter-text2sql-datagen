@@ -1,7 +1,7 @@
 import requests
 import streamlit as st
 
-API_URL = "http://localhost:8080/predict"
+API_URL = "http://localhost:8000/predict"
 
 def get_sql_prediction(question: str):
     """Sends user query to FastAPI and returns the generated SQL."""

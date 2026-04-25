@@ -1,7 +1,7 @@
 import boto3
 import os
 import streamlit as st
-from src.common.config_manager import ConfigManager
+from common.config_manager import ConfigManager
 
 def download_db_from_s3():
     """Downloads the database from S3 to the local versioned path."""

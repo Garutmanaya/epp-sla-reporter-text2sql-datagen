@@ -90,7 +90,7 @@ def step_inference_test(mode="lora", size="base"):
         config = ConfigManager()
         infer = Text2SQLInference(mode=config.training_mode, model_size=config.model_size)
         sample_q = "records where command starts with ADD during previous month"
-        sample_q = "unique command count"
+        #sample_q = "unique command count"
         result = infer.predict(sample_q)
         print(f"Question: {result['question']}")
         print(f"SQL: {result['sql']}")

@@ -15,7 +15,7 @@ st.markdown("""
     .stTextInput enumerate { color: #2e4053; }
     .query-history { font-size: 0.8rem; color: #7f8c8d; }
     </style>
-    """, unsafe_base_value=True)
+    """, unsafe_allow_html=True)
 
 # --- SESSION STATE ---
 if "history" not in st.session_state:

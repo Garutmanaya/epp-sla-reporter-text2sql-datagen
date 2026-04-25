@@ -1,6 +1,6 @@
 import sqlite3
 import pandas as pd
-from src.common.config_manager import ConfigManager
+from common.config_manager import ConfigManager
 
 def run_query(sql: str):
     """Executes SQL against the local sqlite file and returns a DataFrame."""
