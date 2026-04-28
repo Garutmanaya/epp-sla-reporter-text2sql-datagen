@@ -156,6 +156,11 @@ class QueryEngine:
         # Handle fallback for group_col in pattern search to ensure NL is meaningful
         g_col_nl = nl_parts["group"] if nl_parts["group"] else (template["group_cols"][0]["nl"] if "group_cols" in template else "")
 
+        ## FIX for Template 7 
+        group_clause = ""
+        if nl_parts.get("group"):
+            group_clause = f"by {nl_parts['group']}"
+
         # We provide m_nl, group_col, filters, limit, and pattern_val to satisfy all potential template placeholders
         try:
             # Prepare the filter string once
@@ -166,7 +171,9 @@ class QueryEngine:
                 group_col=g_col_nl,
                 filters=filter_str,
                 limit=limit_val,
-                pattern_val=nl_parts.get("pattern_val", "ADD") # Fix for pattern_search
+                pattern_val=nl_parts.get("pattern_val", "ADD"),  # Fix for pattern_search
+                group_clause=group_clause,   ## Fix for template7
+                threshold=nl_parts.get("threshold", "")
             )
         except KeyError as e:
             # Fallback if other unexpected keys appear in templates
@@ -187,8 +194,12 @@ class QueryEngine:
 
 
         # Clean up double spaces and grammatical artifacts
+        #full_nl = re.sub(r"\s+", " ", full_nl).strip()
+        #full_nl = full_nl.replace("for during", "during").replace("of for", "for").rstrip("for").strip()
+        ## Fix for truncation 
         full_nl = re.sub(r"\s+", " ", full_nl).strip()
-        full_nl = full_nl.replace("for during", "during").replace("of for", "for").rstrip("for").strip()
+        full_nl = full_nl.replace("for during", "during").replace("of for", "for")
+        full_nl = re.sub(r"\bfor$", "", full_nl).strip()
 
         return full_nl, sql
 

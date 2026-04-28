@@ -1,6 +1,7 @@
 import random
 import re
 from datagen.config import TIME_FILTERS, COLUMN_VALUES, METRICS
+from datagen.config_utils import ConfigUtils
 
 # ==============================================================================
 # 1. TIME SERIES MODES
@@ -104,14 +105,31 @@ class FilterProcessor:
         3. Stores the fragment in sql_state['having'] for later assembly.
         4. Appends "greater than 100" to the NL filter list.
         """
+        #if "having" in active_filters:
+        #    threshold = 100
+        #    sql_state["having"] = f"HAVING {metric_sql} > {threshold}"
+        #    nl_state["filters"].append(f"greater than {threshold}")
+        #return sql_state, nl_state
+    
+        import random
         if "having" in active_filters:
-            threshold = 100
-            sql_state["having"] = f"HAVING {metric_sql} > {threshold}"
-            nl_state["filters"].append(f"greater than {threshold}")
+            
+            # Only allow meaningful metrics for HAVING
+            valid_metrics = {
+                "SUM(epp_sla.volume)": (1000, 100_000_000),
+                "AVG(epp_sla.response_time)": (10, 100)
+            }
+
+            if metric_sql in valid_metrics:
+                low, high = valid_metrics[metric_sql]
+                threshold = random.randint(low, high)
+
+                sql_state["having"] = f"HAVING {metric_sql} > {threshold}"
+                nl_state["threshold"] = threshold
+
         return sql_state, nl_state
 
-
-    def apply_pattern_filter(self, active_filters, template, sql_state, nl_state):
+    def apply_pattern_filter_v1(self, active_filters, template, sql_state, nl_state):
         """
         LOGIC:
         1. Checks for 'pattern' in active_filters.
@@ -119,6 +137,7 @@ class FilterProcessor:
         3. Returns the pattern string used so the NL can be specific.
         """
         pattern_val = "ADD" # Robotic placeholder
+        
         if "pattern" in active_filters:
             # Use the group column defined in the template for the LIKE clause
             g_col = template["group_cols"][0]["sql"]
@@ -128,6 +147,30 @@ class FilterProcessor:
             
         return sql_state, nl_state 
     
+    def apply_pattern_filter(self, active_filters, template, sql_state, nl_state):
+        if "pattern" in active_filters:
+            # 1. Pick column dynamically from template
+            g = random.choice(template["group_cols"])
+            g_col = g["sql"]
+            nl_state["group"] = g["nl"]
+
+            # 2. Extract column name (e.g., command, tld)
+            table = template["tables"][0]
+            col_name = g_col.split(".")[1]
+
+            # 3. Get value from config
+            val = random.choice(COLUMN_VALUES[table][col_name])
+            clean_val = val.strip("'")
+
+            # 4. Derive prefix safely
+            pattern_val = clean_val.split("-")[0] if "-" in clean_val else clean_val[:3]
+
+            # 5. Apply SQL + NL
+            sql_state["where"].append(f"{g_col} LIKE '{pattern_val}%'")
+            nl_state["pattern_val"] = pattern_val
+
+        return sql_state, nl_state
+
 
     def apply_order_filter(self, active_filters, template, metric_sql, sql_state, nl_state):
         """
@@ -156,7 +199,7 @@ class FilterProcessor:
 # 3. MAIN TEST BLOCK
 # ==============================================================================
 if __name__ == "__main__":
-    from config_utils import ConfigUtils
+    from datagen.config_utils import ConfigUtils
     
     print("--- Testing FilterProcessor Functions with Descriptions ---")
     utils = ConfigUtils(mode="serial")
